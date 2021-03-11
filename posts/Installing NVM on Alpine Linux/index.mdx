@@ -1,0 +1,100 @@
+---
+title: NVM을 AlpineLinux에 설치하기
+author: seia
+date: 2021-03-12
+sort: 이 글에서는 AlpineLinux 혹은 마이너 리눅스 배포판에서 NVM을 사용할 수 있는 더 간편한 방법을 소개해드리려고 합니다.
+thumbnail: ../../static/thumbnails/another-warmness.png
+---
+
+저는 가볍고 원하는 것만 설치할 수 있다는 이유로 AlpineLinux를 애용합니다.
+그러나 태생적인 문제로 많은 프로그램이 제대로 실행되지 않는 경우가 발생합니다.
+
+NVM은 그 중 하나이며 Node.JS를 설치할 때 정말로 편리하게 설치할 수 있게 해줍니다.
+
+# NVM 설치하기
+
+> 이 글은 [GitHub의 솔루션](https://github.com/nvm-sh/nvm/issues/1102#issuecomment-550572252)에 기반을 두고 있습니다.
+
+## 필요한 패키지 설치
+
+이제 AlpineLinux가 번들 사이즈를 줄이기 위한 노력으로 도입한 BuxyBox를 한 번 더 GNU로 갈아엎어 주어야 합니다.
+
+```sh
+# Slim (for containers)
+apk add -U coreutils
+
+# Full (for developers)
+apk add -U libstdc++ coreutils curl bash
+```
+
+- `libstdc++`, 소스 이슈에서는 Node와 NPM의 실행을 위해 필요하다고 하지만 실제로 Musl Libc용 Node.JS를 다운로드받으면 없어도 됩니다.
+- `curl`, NVM의 정상적인 작동을 위해 필요하지만 실제로 없어도 동작합니다. (단, 오류와 함께)
+그래도 컨테이너 환경이 아닌 경우에는 전체 설치해주세요.
+- `coreutils`, BusyBox의 열악한 기본 바이너리를 대체하기 위한 GNU 툴킷입니다.
+- `bash`, NVM의 정상적인 설치를 위해 필요하지만 실제로 없어도 설치할 수 있습니다.
+
+## NVM 설치
+
+먼저 [여기](https://github.com/nvm-sh/nvm#install--update-script)에서 `wget`을 통해 NVM을 설치해주세요.
+
+그리고 `source` 명령어를 통해 쉘을 다시 로드합니다.
+
+```sh
+source ~/.profile
+source ~/.zshrc
+source ~/.bashrc
+```
+
+### Coreutils만 설치한 경우
+
+Coreutils만 설치한 경우에는 완벽한 설치를 위해 추가 작업이 필요합니다.
+아래 스크립트가 `.profile` 혹은 `.zshrc`, `.bashrc` 등 각종 쉘에 포함되었는지 확인해주세요.
+
+```sh
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+```
+
+## Prebuild URL prefix 변경
+
+사실 Node.JS의 AlpineLinux 버전은 [Node.JS의 비공식 빌드 디렉터리](https://unofficial-builds.nodejs.org/download/release)에서 사용할 수 있습니다.
+그렇기 때문에 우선적으로 Musl 빌드를 포함하고 있는 비공식 디렉터리로 변경해야 합니다.
+
+```sh
+cd ~
+
+# Default shell
+touch .profile
+echo "export NVM_NODEJS_ORG_MIRROR=https://unofficial-builds.nodejs.org/download/release" >> .profile
+
+# Zsh
+echo "export NVM_NODEJS_ORG_MIRROR=https://unofficial-builds.nodejs.org/download/release" >> .zshrc
+
+# Bash
+echo "export NVM_NODEJS_ORG_MIRROR=https://unofficial-builds.nodejs.org/download/release" >> .bashrc
+```
+
+## NVM 내부 함수 덮어씌우기
+
+마지막으로 Musl 기반의 Node.JS를 설치하기 위해 NVM의 소스코드를 직접 수정해야 합니다.
+아래 코드를 사용하면 NVM에서 아키텍쳐를 계산하는 함수가 무조건 `x64-musl`을 반환하도록 할 수 있습니다.
+
+```sh
+echo "nvm_get_arch() { nvm_echo \"x64-musl\"; }" >> $NVM_DIR/nvm.sh
+```
+
+# 설치 확인하기
+
+간단하게 아래 명령어로 설치를 확인해보세요: `nvm install --lts`
+
+```sh
+fa@Laptop-S510UQRSW3  ~  nvm install --lts
+Installing latest LTS version.
+Downloading and installing node v14.16.0...
+Downloading https://unofficial-builds.nodejs.org/download/release/v14.16.0/node-v14.16.0-linux-x64-musl.tar.xz...
+###################################################################################################################################################################################################################################### 100.0%
+Computing checksum with sha256sum
+Checksums matched!
+Now using node v14.16.0 (npm v6.14.11)
+Creating default alias: default -> lts/* (-> v14.16.0)
+```
